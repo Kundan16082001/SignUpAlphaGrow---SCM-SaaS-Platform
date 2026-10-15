@@ -3,103 +3,159 @@
 namespace App\Http\Controllers\Scm;
 
 use App\Http\Controllers\Controller;
-use App\Models\WarehouseBin;
-use App\Models\WarehouseCapacityConfig;
+use App\Models\{Warehouse, WarehouseBin, Batch};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class WarehouseCapacityController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $tenantId = Auth::user()->tenant_id;
 
-        // Get or create config
-        $config = WarehouseCapacityConfig::firstOrCreate(
-            ['tenant_id' => $tenantId],
-            [
-                'warehouse_name' => 'Main Warehouse',
-                'total_area_sqft' => 10000,
-                'pallet_capacity' => 500,
-                'shelf_capacity' => 1000,
-                'cold_capacity' => 200,
-                'hazmat_capacity' => 100,
-                'max_weight_tons' => 50,
-            ]
-        );
+        // Get all active warehouses
+        $warehouses = Warehouse::where('tenant_id', $tenantId)
+            ->where('status', 'active')
+            ->withCount('bins')
+            ->get();
 
-        // Bins
-        $bins = WarehouseBin::where('tenant_id', $tenantId)->get();
+        // Filter by specific warehouse if selected
+        $selectedWarehouse = null;
+        if ($request->filled('warehouse_id')) {
+            $selectedWarehouse = Warehouse::where('id', $request->warehouse_id)
+                ->where('tenant_id', $tenantId)
+                ->first();
+        }
 
-        // Calculate utilization
-        $totalCapacity = $config->total_capacity;
-        $usedCapacity = $bins->sum('current_qty');
-        $utilizationPercent = $totalCapacity > 0 ? round(($usedCapacity / $totalCapacity) * 100, 1) : 0;
+        // Calculate overall stats
+        $overallStats = $this->calculateOverallStats($tenantId, $selectedWarehouse);
 
-        // Capacity by type
-        $capacityByType = [
-            'pallet' => ['total' => $config->pallet_capacity, 'used' => $bins->where('type', 'pallet')->sum('current_qty')],
-            'shelf' => ['total' => $config->shelf_capacity, 'used' => $bins->where('type', 'shelf')->sum('current_qty')],
-            'cold' => ['total' => $config->cold_capacity, 'used' => $bins->where('type', 'cold')->sum('current_qty')],
-            'hazmat' => ['total' => $config->hazmat_capacity, 'used' => $bins->where('type', 'hazmat')->sum('current_qty')],
+        // Calculate per-warehouse stats for comparison
+        $warehouseStats = $warehouses->map(function($wh) use ($tenantId) {
+            return $this->getWarehouseStats($wh, $tenantId);
+        });
+
+        // Bin type breakdown
+        $binTypeStats = $this->getBinTypeStats($tenantId, $selectedWarehouse);
+
+        // Zone-wise utilization
+        $zoneStats = $this->getZoneStats($tenantId, $selectedWarehouse);
+
+        return view('scm.warehouse-capacity.index', compact(
+            'warehouses', 'selectedWarehouse', 'overallStats', 'warehouseStats', 'binTypeStats', 'zoneStats'
+        ));
+    }
+
+    private function calculateOverallStats($tenantId, $selectedWarehouse = null)
+    {
+        $query = WarehouseBin::where('tenant_id', $tenantId);
+        $batchQuery = Batch::where('batches.tenant_id', $tenantId); // ✅ FIXED: Explicit table name
+        if ($selectedWarehouse) {
+            $query->where('warehouse_id', $selectedWarehouse->id);
+            $batchQuery->where('warehouse_id', $selectedWarehouse->id);
+        }
+
+        $totalBins = (clone $query)->count();
+        $availableBins = (clone $query)->where('status', 'available')->count();
+        $occupiedBins = (clone $query)->where('status', 'occupied')->count();
+        $reservedBins = (clone $query)->where('status', 'reserved')->count();
+
+        $totalCapacity = (clone $query)->sum('max_capacity');
+        $usedCapacity = (clone $query)->sum('current_qty');
+        $utilization = $totalCapacity > 0 ? round(($usedCapacity / $totalCapacity) * 100, 1) : 0;
+
+        $stockValue = (clone $batchQuery)
+            ->join('products', 'batches.product_id', '=', 'products.id')
+            ->sum(DB::raw('batches.current_qty * products.cost_price'));
+
+        $totalArea = $selectedWarehouse 
+            ? $selectedWarehouse->total_area_sqft 
+            : Warehouse::where('tenant_id', $tenantId)->sum('total_area_sqft');
+
+        return [
+            'total_bins' => $totalBins,
+            'available_bins' => $availableBins,
+            'occupied_bins' => $occupiedBins,
+            'reserved_bins' => $reservedBins,
+            'total_capacity' => $totalCapacity,
+            'used_capacity' => $usedCapacity,
+            'utilization' => $utilization,
+            'stock_value' => (float) $stockValue,
+            'total_area' => $totalArea,
         ];
+    }
 
-        // Bin stats
-        $binStats = [
-            'total' => $bins->count(),
+    private function getWarehouseStats(Warehouse $wh, $tenantId)
+    {
+        $bins = WarehouseBin::where('warehouse_id', $wh->id)->get();
+        
+        $totalCapacity = $bins->sum('max_capacity');
+        $usedCapacity = $bins->sum('current_qty');
+        $utilization = $totalCapacity > 0 ? round(($usedCapacity / $totalCapacity) * 100, 1) : 0;
+
+        $stockValue = Batch::where('warehouse_id', $wh->id)
+            ->join('products', 'batches.product_id', '=', 'products.id')
+            ->where('batches.tenant_id', $tenantId)
+            ->sum(DB::raw('batches.current_qty * products.cost_price'));
+        return [
+            'warehouse' => $wh,
+            'total_bins' => $bins->count(),
             'available' => $bins->where('status', 'available')->count(),
             'occupied' => $bins->where('status', 'occupied')->count(),
             'reserved' => $bins->where('status', 'reserved')->count(),
-            'maintenance' => $bins->where('status', 'maintenance')->count(),
+            'total_capacity' => $totalCapacity,
+            'used_capacity' => $usedCapacity,
+            'utilization' => $utilization,
+            'stock_value' => (float) $stockValue,
+            'area' => $wh->total_area_sqft,
         ];
-
-        return view('scm.warehouse-capacity.index', compact('config', 'bins', 'utilizationPercent', 'capacityByType', 'binStats'));
     }
 
-    public function storeBin(Request $request)
+    private function getBinTypeStats($tenantId, $selectedWarehouse = null)
     {
-        $request->validate([
-            'bin_code' => 'required|string|unique:warehouse_bins,bin_code',
-            'type' => 'required|in:pallet,shelf,cold,hazmat',
-            'max_capacity' => 'required|integer|min:1',
-        ]);
+        $query = WarehouseBin::where('tenant_id', $tenantId);
+        
+        if ($selectedWarehouse) {
+            $query->where('warehouse_id', $selectedWarehouse->id);
+        }
 
-        WarehouseBin::create([
-            'tenant_id' => Auth::user()->tenant_id,
-            'bin_code' => strtoupper($request->bin_code),
-            'type' => $request->type,
-            'zone' => $request->zone,
-            'aisle' => $request->aisle,
-            'rack' => $request->rack,
-            'max_capacity' => $request->max_capacity,
-            'current_qty' => 0,
-            'temperature_zone' => $request->temperature_zone,
-            'status' => 'available',
-        ]);
-
-        return redirect()->route('scm.warehouse-capacity.index')->with('success', 'Bin added successfully!');
+        return $query->select('type', 
+                DB::raw('COUNT(*) as total_bins'),
+                DB::raw('SUM(max_capacity) as total_capacity'),
+                DB::raw('SUM(current_qty) as used_capacity')
+            )
+            ->groupBy('type')
+            ->get()
+            ->map(function($item) {
+                $item->utilization = $item->total_capacity > 0 
+                    ? round(($item->used_capacity / $item->total_capacity) * 100, 1) 
+                    : 0;
+                return $item;
+            });
     }
 
-    public function updateConfig(Request $request)
+    private function getZoneStats($tenantId, $selectedWarehouse = null)
     {
-        $tenantId = Auth::user()->tenant_id;
-        $config = WarehouseCapacityConfig::where('tenant_id', $tenantId)->first();
+        $query = WarehouseBin::where('tenant_id', $tenantId);
+        
+        if ($selectedWarehouse) {
+            $query->where('warehouse_id', $selectedWarehouse->id);
+        }
 
-        $request->validate([
-            'warehouse_name' => 'required|string|max:255',
-            'total_area_sqft' => 'required|numeric|min:0',
-            'pallet_capacity' => 'required|integer|min:0',
-            'shelf_capacity' => 'required|integer|min:0',
-            'cold_capacity' => 'required|integer|min:0',
-            'hazmat_capacity' => 'required|integer|min:0',
-            'max_weight_tons' => 'required|numeric|min:0',
-        ]);
-
-        $config->update($request->only([
-            'warehouse_name', 'total_area_sqft', 'pallet_capacity',
-            'shelf_capacity', 'cold_capacity', 'hazmat_capacity', 'max_weight_tons'
-        ]));
-
-        return redirect()->route('scm.warehouse-capacity.index')->with('success', 'Capacity configuration updated!');
+        return $query->select('zone',
+                DB::raw('COUNT(*) as total_bins'),
+                DB::raw('SUM(max_capacity) as total_capacity'),
+                DB::raw('SUM(current_qty) as used_capacity')
+            )
+            ->groupBy('zone')
+            ->orderBy('zone')
+            ->get()
+            ->map(function($item) {
+                $item->utilization = $item->total_capacity > 0 
+                    ? round(($item->used_capacity / $item->total_capacity) * 100, 1) 
+                    : 0;
+                return $item;
+            });
     }
 }

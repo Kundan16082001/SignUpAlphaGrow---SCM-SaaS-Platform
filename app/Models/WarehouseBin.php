@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WarehouseBin extends Model
 {
@@ -52,4 +54,9 @@ class WarehouseBin extends Model
         if ($this->utilization >= 70) return 'warning';
         return 'success';
     }
+
+    public function warehouse(): BelongsTo
+{
+    return $this->belongsTo(Warehouse::class);
+}
 }

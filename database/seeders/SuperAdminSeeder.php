@@ -22,7 +22,7 @@ class SuperAdminSeeder extends Seeder
 
         // 2. Create SuperAdmin User
         User::firstOrCreate(
-            ['email' => 'admin@alphagrow.com'],
+            ['email' => 'admin@signupalphagrow.com'],
             [
                 'tenant_id' => $tenant->id,
                 'name' => 'Super Admin',
@@ -33,6 +33,6 @@ class SuperAdminSeeder extends Seeder
             ]
         );
         
-        $this->command->info('✅ SuperAdmin created: admin@alphagrow.com / password123');
+        $this->command->info('✅ SuperAdmin created: admin@signupalphagrow.com / password123');
     }
 }

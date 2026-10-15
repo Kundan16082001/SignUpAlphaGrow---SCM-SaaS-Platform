@@ -1,16 +1,16 @@
 @extends('layouts.master')
 @section('title', 'GR/QR Posting')
-@section('page-title', 'Goods & Quality Receipt Posting')
+@section('page-title', 'Goods & Quality Receipt')
 
 @section('content')
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
+        <div class="alert alert-success alert-dismissible fade show shadow-sm">
             <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
     @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show">
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm">
             <ul class="mb-0 ps-3">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -19,10 +19,10 @@
     {{-- ==================== KPI CARDS ==================== --}}
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm bg-warning text-dark">
+            <div class="card border-0 shadow-sm bg-warning text-dark h-100">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="small mb-1 opacity-75">Pending Receipts</p>
+                        <p class="small mb-1 opacity-75 fw-bold text-uppercase">Pending Receipts</p>
                         <h3 class="fw-bold mb-0">{{ $stats['pending_gr'] }}</h3>
                     </div>
                     <i class="bi bi-hourglass-split fs-1 opacity-50"></i>
@@ -30,10 +30,10 @@
             </div>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm bg-success text-white">
+            <div class="card border-0 shadow-sm bg-success text-white h-100">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="small mb-1 opacity-75">Posted Receipts</p>
+                        <p class="small mb-1 opacity-75 fw-bold text-uppercase">Posted Receipts</p>
                         <h3 class="fw-bold mb-0">{{ $stats['posted_gr'] }}</h3>
                     </div>
                     <i class="bi bi-check-circle fs-1 opacity-50"></i>
@@ -41,24 +41,24 @@
             </div>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm bg-primary text-white">
+            <div class="card border-0 shadow-sm bg-primary text-white h-100">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="small mb-1 opacity-75">Total Received</p>
+                        <p class="small mb-1 opacity-75 fw-bold text-uppercase">Total Received</p>
                         <h3 class="fw-bold mb-0">{{ number_format($stats['total_received']) }}</h3>
-                        <small class="opacity-75">units</small>
+                        <small class="opacity-75">Units Added to Stock</small>
                     </div>
                     <i class="bi bi-box-seam fs-1 opacity-50"></i>
                 </div>
             </div>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm bg-danger text-white">
+            <div class="card border-0 shadow-sm bg-danger text-white h-100">
                 <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
-                        <p class="small mb-1 opacity-75">Damaged / Rejected</p>
+                        <p class="small mb-1 opacity-75 fw-bold text-uppercase">Damaged / Rejected</p>
                         <h3 class="fw-bold mb-0">{{ number_format($stats['total_damaged']) }}</h3>
-                        <small class="opacity-75">QC Failed</small>
+                        <small class="opacity-75">QC Failed Units</small>
                     </div>
                     <i class="bi bi-x-circle fs-1 opacity-50"></i>
                 </div>
@@ -66,36 +66,33 @@
         </div>
     </div>
 
-    {{-- ==================== TAB NAVIGATION ==================== --}}
-    <ul class="nav nav-pills mb-4" id="grqrTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="pending-tab" data-bs-toggle="pill" data-bs-target="#pending" type="button">
-                <i class="bi bi-hourglass-split me-1"></i> Pending Receipts
-                <span class="badge bg-warning text-dark ms-1">{{ $stats['pending_gr'] }}</span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="posted-tab" data-bs-toggle="pill" data-bs-target="#posted" type="button">
-                <i class="bi bi-check-circle me-1"></i> Posting History
-                <span class="badge bg-success ms-1">{{ $stats['posted_gr'] }}</span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="qc-tab" data-bs-toggle="pill" data-bs-target="#qc" type="button">
-                <i class="bi bi-clipboard2-check me-1"></i> QC Inspections
-            </button>
-        </li>
-    </ul>
+    {{-- ==================== HEADER & ACTIONS ==================== --}}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <ul class="nav nav-pills" id="grqrTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pending">
+                    <i class="bi bi-hourglass-split me-1"></i> Pending
+                    <span class="badge bg-warning text-dark ms-1">{{ $stats['pending_gr'] }}</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#posted">
+                    <i class="bi bi-clock-history me-1"></i> History
+                    <span class="badge bg-success ms-1">{{ $stats['posted_gr'] }}</span>
+                </button>
+            </li>
+        </ul>
+        {{-- ✅ NEW: Create Goods Receipt Button --}}
+        <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#postGrqrModal" onclick="resetModalForCreate()">
+            <i class="bi bi-plus-lg me-1"></i> Create Goods Receipt
+        </button>
+    </div>
 
     {{-- ==================== TAB CONTENT ==================== --}}
-    <div class="tab-content" id="grqrTabContent">
-
-        {{-- ==================== PENDING RECEIPTS TAB ==================== --}}
-        <div class="tab-pane fade show active" id="pending" role="tabpanel">
+    <div class="tab-content">
+        {{-- PENDING TAB --}}
+        <div class="tab-pane fade show active" id="pending">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-hourglass-split me-2 text-warning"></i>Awaiting Goods Receipt</h6>
-                </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -124,23 +121,21 @@
                                         </td>
                                         <td>
                                             <div class="fw-semibold">{{ $gr->batch->batch_no }}</div>
-                                            <small class="text-muted">{{ $gr->batch->product->name ?? 'Unknown' }} ({{ $gr->batch->product->sku ?? 'N/A' }})</small>
+                                            <small class="text-muted">{{ $gr->batch->product->name ?? 'Unknown' }}</small>
                                         </td>
                                         <td class="text-center">
                                             <span class="badge bg-light text-dark border fs-6">{{ $gr->expected_qty }}</span>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-warning bg-opacity-10 text-warning">
-                                                <i class="bi bi-hourglass-split me-1"></i>Pending
-                                            </span>
-                                        </td>
+                                        <td><span class="badge bg-warning bg-opacity-10 text-warning">Pending</span></td>
                                         <td class="text-muted small">{{ $gr->created_at->diffForHumans() }}</td>
                                         <td class="text-end pe-4">
                                             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#postGrqrModal"
                                                 data-shipment="{{ $gr->shipment_id }}"
                                                 data-batch="{{ $gr->batch_id }}"
                                                 data-batchno="{{ $gr->batch->batch_no }}"
-                                                data-expected="{{ $gr->expected_qty }}">
+                                                data-product="{{ $gr->batch->product->name ?? 'Unknown' }}"
+                                                data-expected="{{ $gr->expected_qty }}"
+                                                onclick="populateModal(this)">
                                                 <i class="bi bi-pencil-square me-1"></i> Post GR/QR
                                             </button>
                                         </td>
@@ -163,12 +158,9 @@
             </div>
         </div>
 
-        {{-- ==================== POSTED HISTORY TAB ==================== --}}
-        <div class="tab-pane fade" id="posted" role="tabpanel">
+        {{-- POSTED HISTORY TAB --}}
+        <div class="tab-pane fade" id="posted">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-success"></i>GR/QR Posting History</h6>
-                </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -182,7 +174,7 @@
                                     <th class="text-center">Damaged</th>
                                     <th class="text-center">QC Result</th>
                                     <th class="text-center">QC Score</th>
-                                    <th>Posted On</th>
+                                    <th class="text-end pe-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -193,17 +185,9 @@
                                             <div class="fw-semibold">{{ $post->batch->batch_no }}</div>
                                             <small class="text-muted">{{ $post->batch->product->name ?? 'Unknown' }}</small>
                                         </td>
-                                        <td>
-                                            @if($post->shipment)
-                                                <span class="small">{{ $post->shipment->shipment_no }}</span>
-                                            @else
-                                                <span class="text-muted small">N/A</span>
-                                            @endif
-                                        </td>
+                                        <td><span class="small">{{ $post->shipment->shipment_no ?? 'N/A' }}</span></td>
                                         <td class="text-center text-muted">{{ $post->expected_qty }}</td>
-                                        <td class="text-center">
-                                            <span class="fw-bold text-success">{{ $post->received_qty }}</span>
-                                        </td>
+                                        <td class="text-center fw-bold text-success">{{ $post->received_qty }}</td>
                                         <td class="text-center">
                                             @if($post->damaged_qty > 0)
                                                 <span class="fw-bold text-danger">{{ $post->damaged_qty }}</span>
@@ -216,28 +200,29 @@
                                                 $qcColors = ['pass' => 'success', 'fail' => 'danger', 'pending' => 'warning'];
                                                 $qcIcons = ['pass' => 'bi-check-circle-fill', 'fail' => 'bi-x-circle-fill', 'pending' => 'bi-hourglass-split'];
                                             @endphp
-                                            <span class="badge bg-{{ $qcColors[$post->qc_result] ?? 'secondary' }} bg-opacity-10 text-{{ $qcColors[$post->qc_result] ?? 'secondary' }}">
-                                                <i class="bi {{ $qcIcons[$post->qc_result] ?? 'bi-question-circle' }} me-1"></i>
-                                                {{ strtoupper($post->qc_result) }}
+                                            <span class="badge bg-{{ $qcColors[$post->qc_result] }} bg-opacity-10 text-{{ $qcColors[$post->qc_result] }}">
+                                                <i class="bi {{ $qcIcons[$post->qc_result] }} me-1"></i> {{ strtoupper($post->qc_result) }}
                                             </span>
                                         </td>
                                         <td class="text-center">
                                             @if($post->qc_score)
-                                                @php
-                                                    $scoreColor = $post->qc_score >= 90 ? 'success' : ($post->qc_score >= 70 ? 'warning' : 'danger');
-                                                @endphp
+                                                @php $scoreColor = $post->qc_score >= 90 ? 'success' : ($post->qc_score >= 70 ? 'warning' : 'danger'); @endphp
                                                 <span class="fw-bold text-{{ $scoreColor }}">{{ $post->qc_score }}%</span>
                                             @else
                                                 <span class="text-muted">-</span>
                                             @endif
                                         </td>
-                                        <td class="text-muted small">{{ $post->created_at->format('d M Y, h:i A') }}</td>
+                                        <td class="text-end pe-4">
+                                            <a href="{{ route('scm.gr-qr.print', $post->id) }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Receipt">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
                                         <td colspan="9" class="text-center py-5 text-muted">
                                             <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                            No posting history yet. Post your first GR/QR from the Pending tab.
+                                            No posting history yet.
                                         </td>
                                     </tr>
                                 @endforelse
@@ -250,102 +235,12 @@
                 @endif
             </div>
         </div>
-
-        {{-- ==================== QC INSPECTIONS TAB ==================== --}}
-        <div class="tab-pane fade" id="qc" role="tabpanel">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="fw-bold mb-0"><i class="bi bi-clipboard2-check me-2 text-info"></i>All Quality Check Records</h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="ps-4">QC #</th>
-                                    <th>Batch</th>
-                                    <th>Inspector</th>
-                                    <th class="text-center">Sample Size</th>
-                                    <th class="text-center">Defects</th>
-                                    <th class="text-center">Defect %</th>
-                                    <th class="text-center">Score</th>
-                                    <th class="text-center">Result</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @php
-                                    $allQc = \App\Models\QualityCheck::with('batch.product')
-                                        ->where('tenant_id', auth()->user()->tenant_id)
-                                        ->latest()
-                                        ->paginate(10);
-                                @endphp
-                                @forelse($allQc as $qc)
-                                    <tr>
-                                        <td class="ps-4 fw-bold text-primary">{{ $qc->qc_no }}</td>
-                                        <td>
-                                            <div class="fw-semibold small">{{ $qc->batch->batch_no }}</div>
-                                            <small class="text-muted">{{ $qc->batch->product->sku ?? 'N/A' }}</small>
-                                        </td>
-                                        <td>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px; height:24px; font-size:0.7rem;">
-                                                    {{ strtoupper(substr($qc->inspector_name, 0, 1)) }}
-                                                </div>
-                                                <small>{{ $qc->inspector_name }}</small>
-                                            </div>
-                                        </td>
-                                        <td class="text-center">{{ $qc->sample_size }}</td>
-                                        <td class="text-center">
-                                            @if($qc->defect_count > 0)
-                                                <span class="text-danger fw-bold">{{ $qc->defect_count }}</span>
-                                            @else
-                                                <span class="text-muted">0</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-center">
-                                            @php $defectPct = $qc->sample_size > 0 ? ($qc->defect_count / $qc->sample_size) * 100 : 0; @endphp
-                                            <span class="{{ $defectPct > 5 ? 'text-danger' : 'text-muted' }}">{{ number_format($defectPct, 1) }}%</span>
-                                        </td>
-                                        <td class="text-center">
-                                            @if($qc->qc_score)
-                                                @php $scoreColor = $qc->qc_score >= 90 ? 'success' : ($qc->qc_score >= 70 ? 'warning' : 'danger'); @endphp
-                                                <span class="fw-bold text-{{ $scoreColor }}">{{ $qc->qc_score }}%</span>
-                                            @else
-                                                <span class="text-muted">-</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-{{ $qc->result_color }} bg-opacity-10 text-{{ $qc->result_color }}">
-                                                <i class="bi {{ $qc->result_icon }} me-1"></i>{{ $qc->result_label }}
-                                            </span>
-                                        </td>
-                                        <td class="text-muted small">{{ $qc->created_at->format('d M Y') }}</td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="9" class="text-center py-5 text-muted">
-                                            <i class="bi bi-clipboard2 fs-1 d-block mb-2"></i>
-                                            No QC inspections recorded yet.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                @if($allQc->hasPages())
-                    <div class="card-footer bg-white border-top-0 pt-3">{{ $allQc->links() }}</div>
-                @endif
-            </div>
-        </div>
-
     </div>
 
     {{-- ==================== POST GR/QR MODAL ==================== --}}
     <div class="modal fade" id="postGrqrModal" tabindex="-1">
-        <div class="modal-dialog modal-xl">
-            <form method="POST" action="{{ route('scm.gr-qr.store') }}" class="modal-content">
+        <div class="modal-dialog modal-lg">
+            <form method="POST" action="{{ route('scm.gr-qr.store') }}" class="modal-content" id="grqrForm" onsubmit="return validateGrqr()">
                 @csrf
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title"><i class="bi bi-clipboard2-check me-2"></i>Post Goods & Quality Receipt</h5>
@@ -355,28 +250,54 @@
                     <input type="hidden" name="shipment_id" id="modal_shipment_id">
                     <input type="hidden" name="batch_id" id="modal_batch_id">
                     
-                    <div class="alert alert-info mb-4">
-                        <i class="bi bi-info-circle me-2"></i> 
-                        Posting for Batch: <strong id="modal_batch_no"></strong> | 
-                        Expected Qty: <strong id="modal_expected_qty"></strong>
+                    <div class="alert alert-info mb-4 d-flex align-items-center">
+                        <i class="bi bi-info-circle fs-4 me-3"></i> 
+                        <div>
+                            <div>Posting for: <strong id="modal_batch_no">Select a batch</strong></div>
+                            <small>Expected Qty: <strong id="modal_expected_qty">0</strong></small>
+                        </div>
                     </div>
 
                     <div class="row g-4">
-                        {{-- Left: Goods Receipt --}}
+                        {{-- Manual Selection (Hidden if coming from Pending list) --}}
+                        <div class="col-12" id="manualSelectSection" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Select Shipment *</label>
+                                    <select name="shipment_id_manual" id="manual_shipment_id" class="form-select" onchange="loadBatchesForShipment(this.value)">
+                                        <option value="">-- Choose Shipment --</option>
+                                        @foreach($availableShipments as $ship)
+                                            <option value="{{ $ship->id }}">{{ $ship->shipment_no }} ({{ $ship->origin }} → {{ $ship->destination }})</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Select Batch *</label>
+                                    <select name="batch_id_manual" id="manual_batch_id" class="form-select" disabled onchange="updateExpectedQty(this)">
+                                        <option value="">-- Choose Batch --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Goods Receipt --}}
                         <div class="col-md-6 border-end">
                             <h6 class="fw-bold text-primary mb-3"><i class="bi bi-box-seam me-2"></i>Goods Receipt (GR)</h6>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Received Quantity *</label>
-                                <input type="number" name="received_qty" id="received_qty" class="form-control form-control-lg" min="0" required>
+                                <input type="number" name="received_qty" id="received_qty" class="form-control form-control-lg" min="0" value="0" required oninput="calculateRemaining()">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold text-danger">Damaged / Rejected Quantity *</label>
-                                <input type="number" name="damaged_qty" id="damaged_qty" class="form-control" min="0" value="0" required>
+                                <input type="number" name="damaged_qty" id="damaged_qty" class="form-control" min="0" value="0" required oninput="calculateRemaining()">
                                 <small class="text-muted">These will not be added to available stock.</small>
+                            </div>
+                            <div class="alert alert-light border mt-3">
+                                <small>Remaining to Receive: <strong id="remaining_qty" class="text-primary">0</strong></small>
                             </div>
                         </div>
 
-                        {{-- Right: Quality Receipt --}}
+                        {{-- Quality Receipt --}}
                         <div class="col-md-6">
                             <h6 class="fw-bold text-success mb-3"><i class="bi bi-clipboard2-check me-2"></i>Quality Receipt (QR)</h6>
                             <div class="mb-3">
@@ -405,15 +326,98 @@
 
 @push('scripts')
 <script>
-    document.querySelectorAll('[data-bs-target="#postGrqrModal"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('modal_shipment_id').value = this.dataset.shipment;
-            document.getElementById('modal_batch_id').value = this.dataset.batch;
-            document.getElementById('modal_batch_no').textContent = this.dataset.batchno;
-            document.getElementById('modal_expected_qty').textContent = this.dataset.expected;
-            document.getElementById('received_qty').value = this.dataset.expected;
+    let isManualMode = false;
+    const shipments = @json($availableShipments);
+
+    function resetModalForCreate() {
+        isManualMode = true;
+        document.getElementById('manualSelectSection').style.display = 'block';
+        document.getElementById('modal_batch_no').textContent = 'Select a batch below';
+        document.getElementById('modal_expected_qty').textContent = '0';
+        document.getElementById('received_qty').value = 0;
+        document.getElementById('damaged_qty').value = 0;
+        document.getElementById('remaining_qty').textContent = '0';
+        
+        // Clear hidden fields
+        document.getElementById('modal_shipment_id').value = '';
+        document.getElementById('modal_batch_id').value = '';
+    }
+
+    function populateModal(btn) {
+        isManualMode = false;
+        document.getElementById('manualSelectSection').style.display = 'none';
+        
+        document.getElementById('modal_shipment_id').value = btn.dataset.shipment;
+        document.getElementById('modal_batch_id').value = btn.dataset.batch;
+        document.getElementById('modal_batch_no').textContent = btn.dataset.batchno + ' (' + btn.dataset.product + ')';
+        document.getElementById('modal_expected_qty').textContent = btn.dataset.expected;
+        document.getElementById('received_qty').value = btn.dataset.expected;
+        document.getElementById('damaged_qty').value = 0;
+        calculateRemaining();
+    }
+
+    function loadBatchesForShipment(shipmentId) {
+        const batchSelect = document.getElementById('manual_batch_id');
+        batchSelect.innerHTML = '<option value="">-- Choose Batch --</option>';
+        batchSelect.disabled = true;
+
+        if (!shipmentId) return;
+
+        const shipment = shipments.find(s => s.id == shipmentId);
+        if (shipment && shipment.batches) {
+            shipment.batches.forEach(batch => {
+                const option = document.createElement('option');
+                option.value = batch.id;
+                option.dataset.expected = batch.expected_qty || 0; // Adjust based on your batch model
+                option.dataset.batchno = batch.batch_no;
+                option.dataset.product = batch.product ? batch.product.name : 'Unknown';
+                option.textContent = `${batch.batch_no} - ${batch.product ? batch.product.name : 'Unknown'}`;
+                batchSelect.appendChild(option);
+            });
+            batchSelect.disabled = false;
+        }
+    }
+
+    function updateExpectedQty(select) {
+        const option = select.options[select.selectedIndex];
+        if (option.value) {
+            document.getElementById('modal_batch_id').value = option.value;
+            document.getElementById('modal_shipment_id').value = document.getElementById('manual_shipment_id').value;
+            document.getElementById('modal_batch_no').textContent = option.dataset.batchno + ' (' + option.dataset.product + ')';
+            document.getElementById('modal_expected_qty').textContent = option.dataset.expected;
+            document.getElementById('received_qty').value = option.dataset.expected;
             document.getElementById('damaged_qty').value = 0;
-        });
-    });
+            calculateRemaining();
+        }
+    }
+
+    function calculateRemaining() {
+        const expected = parseInt(document.getElementById('modal_expected_qty').textContent) || 0;
+        const received = parseInt(document.getElementById('received_qty').value) || 0;
+        const damaged = parseInt(document.getElementById('damaged_qty').value) || 0;
+        
+        const remaining = expected - (received + damaged);
+        document.getElementById('remaining_qty').textContent = remaining;
+        
+        if (remaining < 0) {
+            document.getElementById('remaining_qty').classList.add('text-danger');
+            document.getElementById('remaining_qty').classList.remove('text-primary');
+        } else {
+            document.getElementById('remaining_qty').classList.remove('text-danger');
+            document.getElementById('remaining_qty').classList.add('text-primary');
+        }
+    }
+
+    function validateGrqr() {
+        const expected = parseInt(document.getElementById('modal_expected_qty').textContent) || 0;
+        const received = parseInt(document.getElementById('received_qty').value) || 0;
+        const damaged = parseInt(document.getElementById('damaged_qty').value) || 0;
+
+        if ((received + damaged) > expected) {
+            alert('Error: Received + Damaged quantity cannot exceed Expected quantity!');
+            return false;
+        }
+        return true;
+    }
 </script>
-@endpush 
+@endpush

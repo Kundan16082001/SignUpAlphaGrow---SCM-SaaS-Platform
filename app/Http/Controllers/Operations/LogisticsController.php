@@ -7,25 +7,29 @@ use App\Models\Shipment;
 use App\Models\Carrier;
 use App\Models\Driver;
 use App\Models\Vehicle;
+use App\Models\Batch;
+use App\Models\Product;
+use App\Models\Warehouse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class LogisticsController extends Controller
 {
-    public function index(Request $request)
+        public function index(Request $request)
     {
         $tenantId = Auth::user()->tenant_id;
 
         // KPI Stats
         $stats = [
             'total_shipments' => Shipment::where('tenant_id', $tenantId)->count(),
-            'in_transit' => Shipment::where('tenant_id', $tenantId)->inTransit()->count(),
+            'in_transit' => Shipment::where('tenant_id', $tenantId)->where('status', 'in_transit')->count(),
             'delivered' => Shipment::where('tenant_id', $tenantId)->where('status', 'delivered')->count(),
-            'overdue' => Shipment::where('tenant_id', $tenantId)->overdue()->count(),
+            'overdue' => Shipment::where('tenant_id', $tenantId)->where('status', 'in_transit')->where('eta_date', '<', now())->count(),
             'total_freight' => Shipment::where('tenant_id', $tenantId)->sum('freight_cost'),
-            'active_carriers' => Carrier::where('tenant_id', $tenantId)->active()->count(),
-            'active_drivers' => Driver::where('tenant_id', $tenantId)->active()->count(),
-            'available_vehicles' => Vehicle::where('tenant_id', $tenantId)->available()->count(),
+            'active_carriers' => Carrier::where('tenant_id', $tenantId)->where('status', 'active')->count(),
+            'active_drivers' => Driver::where('tenant_id', $tenantId)->where('status', 'active')->count(),
+            'available_vehicles' => Vehicle::where('tenant_id', $tenantId)->where('status', 'available')->count(),
         ];
 
         // Shipments Query
@@ -53,44 +57,86 @@ class LogisticsController extends Controller
         $carriers = Carrier::where('tenant_id', $tenantId)->latest()->paginate(10);
         $drivers = Driver::where('tenant_id', $tenantId)->latest()->paginate(10);
         $vehicles = Vehicle::where('tenant_id', $tenantId)->latest()->paginate(10);
+        
+        // ✅ Fetch active products and warehouses for the modal dropdowns
+        $products = Product::where('tenant_id', $tenantId)->where('status', 'active')->get();
+        $warehouses = Warehouse::where('tenant_id', $tenantId)->where('status', 'active')->get();
 
         return view('operations.logistics.index', compact(
-            'stats', 'shipments', 'carriers', 'drivers', 'vehicles'
+            'stats', 
+            'shipments', 
+            'carriers', 
+            'drivers', 
+            'vehicles',
+            'products',
+            'warehouses' // ✅ Added here
         ));
     }
-
     public function storeShipment(Request $request)
     {
         $request->validate([
             'direction' => 'required|in:inbound,outbound,return',
-            'origin' => 'required|string|max:255',
-            'destination' => 'required|string|max:255',
+            'origin' => 'required|string',
+            'destination' => 'required|string',
             'carrier_id' => 'nullable|exists:carriers,id',
             'driver_id' => 'nullable|exists:drivers,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
             'freight_cost' => 'required|numeric|min:0',
-            'eta_date' => 'required|date|after_or_equal:today',
+            'eta_date' => 'required|date',
+            'notes' => 'nullable|string',
+            // ✅ Validate Batches
+            'batches' => 'required|array|min:1',
+            'batches.*.product_id' => 'required|exists:products,id',
+            'batches.*.batch_no' => 'required|string|max:50',
+            'batches.*.expected_qty' => 'required|integer|min:1',
         ]);
 
         $tenantId = Auth::user()->tenant_id;
         $shipmentNo = 'SHP-' . strtoupper(substr($request->direction, 0, 1)) . '-' . now()->format('Ymd') . '-' . rand(1000, 9999);
 
-        Shipment::create([
-            'tenant_id' => $tenantId,
-            'shipment_no' => $shipmentNo,
-            'direction' => $request->direction,
-            'origin' => $request->origin,
-            'destination' => $request->destination,
-            'carrier_id' => $request->carrier_id,
-            'driver_id' => $request->driver_id,
-            'vehicle_id' => $request->vehicle_id,
-            'freight_cost' => $request->freight_cost,
-            'eta_date' => $request->eta_date,
-            'status' => 'pending',
-            'notes' => $request->notes,
-        ]);
+        DB::beginTransaction();
+        try {
+            // 1. Create the Shipment
+            $shipment = Shipment::create([
+                'tenant_id' => $tenantId,
+                'shipment_no' => $shipmentNo,
+                'direction' => $request->direction,
+                'origin' => $request->origin,
+                'destination' => $request->destination,
+                'origin_wing' => 'manufacturer', 
+                'carrier_id' => $request->carrier_id,
+                'driver_id' => $request->driver_id,
+                'vehicle_id' => $request->vehicle_id,
+                'freight_cost' => $request->freight_cost,
+                'eta_date' => $request->eta_date,
+                'status' => 'pending',
+                'notes' => $request->notes,
+            ]);
 
-        return redirect()->route('operations.logistics.index')->with('success', 'Shipment created successfully!');
+            // 2. ✅ Create Batches linked to this Shipment
+            foreach ($request->batches as $batchData) {
+                Batch::create([
+                    'tenant_id' => $tenantId,
+                    'shipment_id' => $shipment->id, 
+                    'product_id' => $batchData['product_id'],
+                    'batch_no' => $batchData['batch_no'],
+                    'expected_qty' => $batchData['expected_qty'],
+                    'current_qty' => 0, 
+                ]);
+            }
+
+            // Update vehicle status if assigned
+            if ($request->vehicle_id) {
+                Vehicle::where('id', $request->vehicle_id)->update(['status' => 'in_transit']);
+            }
+
+            DB::commit();
+            return redirect()->route('operations.logistics.index')->with('success', "Shipment {$shipmentNo} created with " . count($request->batches) . " batch(es)!");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to create shipment: ' . $e->getMessage()]);
+        }
     }
 
     public function updateShipmentStatus(Request $request, Shipment $shipment)
@@ -103,7 +149,7 @@ class LogisticsController extends Controller
 
         $shipment->update(['status' => $request->status]);
 
-        // Update vehicle status if delivered
+        // Update vehicle status if delivered or in transit
         if ($request->status === 'delivered' && $shipment->vehicle_id) {
             $shipment->vehicle->update(['status' => 'available']);
         } elseif ($request->status === 'in_transit' && $shipment->vehicle_id) {
@@ -120,6 +166,8 @@ class LogisticsController extends Controller
             'type' => 'nullable|string|max:100',
             'contact' => 'nullable|string|max:50',
             'gstin' => 'nullable|string|size:15',
+            'coverage' => 'nullable|string|max:255',
+            'rating' => 'nullable|numeric|min:1|max:5',
         ]);
 
         Carrier::create([
@@ -133,7 +181,7 @@ class LogisticsController extends Controller
             'status' => 'active',
         ]);
 
-        return redirect()->route('operations.logistics.index')->with('success', 'Carrier added!');
+        return redirect()->route('operations.logistics.index')->with('success', 'Carrier added successfully!');
     }
 
     public function storeDriver(Request $request)
@@ -142,6 +190,11 @@ class LogisticsController extends Controller
             'name' => 'required|string|max:255',
             'license' => 'required|string|unique:drivers,license',
             'phone' => 'nullable|string|max:20',
+            'vehicle_type' => 'nullable|string|max:100',
+            'vehicle_no' => 'nullable|string|max:50',
+            'capacity' => 'nullable|numeric|min:0',
+            'experience_years' => 'nullable|integer|min:0',
+            'rating' => 'nullable|numeric|min:1|max:5',
         ]);
 
         Driver::create([
@@ -157,7 +210,7 @@ class LogisticsController extends Controller
             'status' => 'active',
         ]);
 
-        return redirect()->route('operations.logistics.index')->with('success', 'Driver added!');
+        return redirect()->route('operations.logistics.index')->with('success', 'Driver added successfully!');
     }
 
     public function storeVehicle(Request $request)
@@ -166,6 +219,11 @@ class LogisticsController extends Controller
             'reg_no' => 'required|string|unique:vehicles,reg_no',
             'type' => 'nullable|string|max:100',
             'model' => 'nullable|string|max:100',
+            'capacity' => 'nullable|numeric|min:0',
+            'fuel_type' => 'nullable|string|max:50',
+            'year' => 'nullable|integer|min:1990|max:' . (date('Y') + 1),
+            'insurance_expiry' => 'nullable|date',
+            'fitness_expiry' => 'nullable|date',
         ]);
 
         Vehicle::create([
@@ -181,6 +239,6 @@ class LogisticsController extends Controller
             'status' => 'available',
         ]);
 
-        return redirect()->route('operations.logistics.index')->with('success', 'Vehicle added!');
+        return redirect()->route('operations.logistics.index')->with('success', 'Vehicle added successfully!');
     }
 }

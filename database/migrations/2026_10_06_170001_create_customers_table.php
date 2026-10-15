@@ -3,9 +3,11 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Traits\Syncable;
 
 return new class extends Migration
 {
+    use Syncable;
     public function up(): void
     {
         Schema::create('customers', function (Blueprint $table) {

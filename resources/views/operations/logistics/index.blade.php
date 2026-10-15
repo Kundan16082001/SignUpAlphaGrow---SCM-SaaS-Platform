@@ -477,8 +477,10 @@
     {{-- ==================== MODALS ==================== --}}
 
     {{-- NEW SHIPMENT MODAL --}}
+        {{-- NEW SHIPMENT MODAL --}}
+    {{-- NEW SHIPMENT MODAL --}}
     <div class="modal fade" id="newShipmentModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl">
             <form method="POST" action="{{ route('operations.logistics.shipment.store') }}" class="modal-content">
                 @csrf
                 <div class="modal-header bg-primary text-white">
@@ -486,8 +488,12 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <div class="row g-3">
-                        <div class="col-md-4">
+                    {{-- Main Shipment Details --}}
+                    <h6 class="fw-bold text-primary border-bottom pb-2 mb-3">
+                        <i class="bi bi-geo-alt me-1"></i> Route & Logistics Details
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Direction *</label>
                             <select name="direction" class="form-select" required>
                                 <option value="outbound">Outbound</option>
@@ -495,15 +501,34 @@
                                 <option value="return">Return</option>
                             </select>
                         </div>
+                        
+                        {{-- ✅ UPDATED: Origin Dropdown --}}
                         <div class="col-md-4">
-                            <label class="form-label fw-semibold">Origin *</label>
-                            <input type="text" name="origin" class="form-control" placeholder="e.g., Mumbai Warehouse" required>
+                            <label class="form-label fw-semibold">Origin Location *</label>
+                            <select name="origin" class="form-select" required>
+                                <option value="">Select Origin Warehouse</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->name }}">{{ $warehouse->name }} ({{ $warehouse->code ?? 'WH' }})</option>
+                                @endforeach
+                            </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold">Destination *</label>
-                            <input type="text" name="destination" class="form-control" placeholder="e.g., Delhi Hub" required>
+
+                        {{-- ✅ UPDATED: Destination Dropdown --}}
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold">Destination Location *</label>
+                            <select name="destination" class="form-select" required>
+                                <option value="">Select Destination Warehouse</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->name }}">{{ $warehouse->name }} ({{ $warehouse->code ?? 'WH' }})</option>
+                                @endforeach
+                            </select>
                         </div>
-                        <div class="col-md-4">
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">ETA Date *</label>
+                            <input type="date" name="eta_date" class="form-control" min="{{ date('Y-m-d') }}" required>
+                        </div>
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Carrier</label>
                             <select name="carrier_id" class="form-select">
                                 <option value="">Select Carrier</option>
@@ -512,22 +537,22 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Driver</label>
                             <select name="driver_id" class="form-select">
                                 <option value="">Select Driver</option>
                                 @foreach($drivers as $driver)
-                                    <option value="{{ $driver->id }}">{{ $driver->name }} ({{ $driver->license }})</option>
+                                    <option value="{{ $driver->id }}">{{ $driver->name }}</option>
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-semibold">Vehicle</label>
                             <select name="vehicle_id" class="form-select">
                                 <option value="">Select Vehicle</option>
                                 @foreach($vehicles as $vehicle)
                                     <option value="{{ $vehicle->id }}" {{ $vehicle->status !== 'available' ? 'disabled' : '' }}>
-                                        {{ $vehicle->reg_no }} - {{ $vehicle->type }} ({{ ucfirst($vehicle->status) }})
+                                        {{ $vehicle->reg_no }} ({{ ucfirst($vehicle->status) }})
                                     </option>
                                 @endforeach
                             </select>
@@ -536,19 +561,51 @@
                             <label class="form-label fw-semibold">Freight Cost (₹) *</label>
                             <input type="number" name="freight_cost" class="form-control" step="0.01" min="0" required>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold">ETA Date *</label>
-                            <input type="date" name="eta_date" class="form-control" min="{{ date('Y-m-d') }}" required>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-8">
                             <label class="form-label fw-semibold">Notes</label>
-                            <input type="text" name="notes" class="form-control" placeholder="Special instructions...">
+                            <input type="text" name="notes" class="form-control" placeholder="Special handling instructions, references, etc...">
                         </div>
                     </div>
+
+                    {{-- ✅ Shipment Batches Section --}}
+                    <h6 class="fw-bold text-success border-bottom pb-2 mb-3">
+                        <i class="bi bi-box-seam me-1"></i> Shipment Batches / Items
+                    </h6>
+                    <div id="shipmentBatchesContainer">
+                        <div class="row g-2 batch-row mb-2 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted">Product *</label>
+                                <select name="batches[0][product_id]" class="form-select product-select" required>
+                                    <option value="">Select Product</option>
+                                    @foreach($products as $product)
+                                        <option value="{{ $product->id }}">{{ $product->sku }} - {{ $product->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Batch No *</label>
+                                <input type="text" name="batches[0][batch_no]" class="form-control" placeholder="e.g., BATCH-2026-001" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted">Expected Qty *</label>
+                                <input type="number" name="batches[0][expected_qty]" class="form-control" min="1" value="1" required>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeBatchRow(this)">
+                                    <i class="bi bi-trash me-1"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-success btn-sm mt-2" onclick="addBatchRow()">
+                        <i class="bi bi-plus-circle me-1"></i> Add Another Batch
+                    </button>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Shipment</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i> Create Shipment
+                    </button>
                 </div>
             </form>
         </div>
@@ -721,4 +778,52 @@
         </div>
     </div>
 
+@push('scripts')
+<script>
+    let batchCount = 1;
+
+    function addBatchRow() {
+        const container = document.getElementById('shipmentBatchesContainer');
+        const newRow = document.createElement('div');
+        newRow.className = 'row g-2 batch-row mb-2 align-items-end';
+        
+        const firstSelect = document.querySelector('.product-select');
+        const productOptions = firstSelect ? firstSelect.innerHTML : '';
+
+        newRow.innerHTML = `
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Product *</label>
+                <select name="batches[${batchCount}][product_id]" class="form-select product-select" required>
+                    <option value="">Select Product</option>
+                    ${productOptions}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Batch No *</label>
+                <input type="text" name="batches[${batchCount}][batch_no]" class="form-control" placeholder="e.g., BATCH-2026-001" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Expected Qty *</label>
+                <input type="number" name="batches[${batchCount}][expected_qty]" class="form-control" min="1" value="1" required>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeBatchRow(this)">
+                    <i class="bi bi-trash me-1"></i> Remove
+                </button>
+            </div>
+        `;
+        container.appendChild(newRow);
+        batchCount++;
+    }
+
+    function removeBatchRow(btn) {
+        const rows = document.querySelectorAll('.batch-row');
+        if (rows.length > 1) {
+            btn.closest('.batch-row').remove();
+        } else {
+            alert('A shipment must have at least one batch.');
+        }
+    }
+</script>
+@endpush
 @endsection

@@ -3,12 +3,14 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Traits\Syncable;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
      */
+    use Syncable;
 public function up()
 {
     Schema::create('orders', function (Blueprint $table) {
@@ -24,6 +26,8 @@ public function up()
         $table->enum('status', ['pending', 'processing', 'shipped', 'delivered', 'cancelled'])->default('pending');
         $table->date('order_date');
         $table->timestamps();
+        $table->boolean('is_synced')->default(false);
+$table->timestamp('last_synced_at')->nullable();
     });
 }
 

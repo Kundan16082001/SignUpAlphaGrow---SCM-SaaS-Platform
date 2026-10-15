@@ -14,6 +14,8 @@ class Batch extends Model
     protected $fillable = [
         'tenant_id',
         'product_id',
+        'warehouse_id', // ✅ Added warehouse_id
+        'warehouse_bin_id', 
         'batch_no',
         'mfg_date',
         'exp_date',
@@ -38,6 +40,17 @@ class Batch extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    // ✅ ADD THIS: Link batch to its warehouse
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class, 'warehouse_id');
+    }
+
+    public function warehouseBin(): BelongsTo
+    {
+        return $this->belongsTo(WarehouseBin::class, 'warehouse_bin_id');
     }
 
     public function inventory(): HasMany

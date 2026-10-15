@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Syncable; 
 
 class Product extends Model
 {
+    use Syncable;
     protected $fillable = [
         'tenant_id', 'sku', 'name', 'category', 'unit', 'gst_rate', 'hsn_code', 
-        'price', 'cost_price', 'stock_qty', 'reorder_level', 'status'
+        'price', 'cost_price', 'stock_qty', 'reorder_level', 'status','is_synced', // ✅ 3. Make sure this is fillable
+        'last_synced_at',
     ];
 
     // Accessor to calculate stock status dynamically

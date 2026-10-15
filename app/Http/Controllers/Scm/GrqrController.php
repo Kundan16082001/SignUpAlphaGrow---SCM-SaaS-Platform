@@ -1,11 +1,9 @@
 <?php
+
 namespace App\Http\Controllers\Scm;
 
 use App\Http\Controllers\Controller;
-use App\Models\GrqrPosting;
-use App\Models\QualityCheck;
-use App\Models\Shipment;
-use App\Models\Batch;
+use App\Models\{GrqrPosting, QualityCheck, Shipment, Batch, Movement};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -13,43 +11,41 @@ use Illuminate\Support\Facades\DB;
 class GrqrController extends Controller
 {
     public function index(Request $request)
-{
-    $tenantId = Auth::user()->tenant_id;
-    
-    // Pending GR (awaiting posting)
-    $pendingGr = GrqrPosting::with(['batch.product', 'shipment'])
-        ->where('tenant_id', $tenantId)
-        ->where('type', 'gr')
-        ->where('status', 'pending')
-        ->latest()
-        ->paginate(10, ['*'], 'pending_page');
+    {
+        $tenantId = Auth::user()->tenant_id;
+        
+        // Pending GR (awaiting posting)
+        $pendingGr = GrqrPosting::with(['batch.product', 'shipment'])
+            ->where('tenant_id', $tenantId)
+            ->where('type', 'gr')
+            ->where('status', 'pending')
+            ->latest()
+            ->paginate(10, ['*'], 'pending_page');
 
-    // ✅ NEW: Posted GR/QR History
-    $postedGrqr = GrqrPosting::with(['batch.product', 'shipment'])
-        ->where('tenant_id', $tenantId)
-        ->where('status', 'posted')
-        ->latest()
-        ->paginate(10, ['*'], 'posted_page');
+        // Posted GR/QR History
+        $postedGrqr = GrqrPosting::with(['batch.product', 'shipment'])
+            ->where('tenant_id', $tenantId)
+            ->where('status', 'posted')
+            ->latest()
+            ->paginate(10, ['*'], 'posted_page');
 
-    // Recent QC checks
-    $recentQc = QualityCheck::with('batch.product')
-        ->where('tenant_id', $tenantId)
-        ->latest()
-        ->take(5)
-        ->get();
+        // For the "Create New" modal: Get active shipments with batches
+        $availableShipments = Shipment::with(['batches.product'])
+            ->where('tenant_id', $tenantId)
+            ->whereIn('status', ['in_transit', 'arrived', 'pending'])
+            ->latest()
+            ->get();
 
-    // Stats
-    $stats = [
-        'pending_gr' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'pending')->count(),
-        'posted_gr' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'posted')->count(),
-        'passed_qc' => QualityCheck::where('tenant_id', $tenantId)->where('result', 'pass')->count(),
-        'failed_qc' => QualityCheck::where('tenant_id', $tenantId)->where('result', 'fail')->count(),
-        'total_received' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'posted')->sum('received_qty'),
-        'total_damaged' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'posted')->sum('damaged_qty'),
-    ];
+        // Stats
+        $stats = [
+            'pending_gr' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'pending')->count(),
+            'posted_gr' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'posted')->count(),
+            'total_received' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'posted')->sum('received_qty'),
+            'total_damaged' => GrqrPosting::where('tenant_id', $tenantId)->where('status', 'posted')->sum('damaged_qty'),
+        ];
 
-    return view('scm.grqr.index', compact('pendingGr', 'postedGrqr', 'recentQc', 'stats'));
-}
+        return view('scm.grqr.index', compact('pendingGr', 'postedGrqr', 'availableShipments', 'stats'));
+    }
 
     public function storePosting(Request $request)
     {
@@ -63,8 +59,13 @@ class GrqrController extends Controller
             'qc_score' => 'nullable|numeric|min:0|max:100',
         ]);
 
+        // ✅ Smart Validation: Prevent over-receiving
+        if (($request->received_qty + $request->damaged_qty) > $request->expected_qty) {
+            return back()->withErrors(['error' => 'Received + Damaged quantity cannot exceed Expected quantity.']);
+        }
+
         $tenantId = Auth::user()->tenant_id;
-        $postingNo = 'GRQR-' . now()->format('Ymd') . '-' . rand(1000, 9999);
+        $postingNo = 'GR-' . now()->format('Ymd') . '-' . str_pad(GrqrPosting::count() + 1, 4, '0', STR_PAD_LEFT);
 
         DB::beginTransaction();
         try {
@@ -96,31 +97,47 @@ class GrqrController extends Controller
                 'parameters' => 'Visual, Weight, Dimensions',
             ]);
 
-            // 3. Record Movement
-            $shipment = Shipment::find($request->shipment_id);
-            \App\Models\Movement::create([
-                'tenant_id' => $tenantId,
-                'batch_id' => $request->batch_id,
-                'shipment_id' => $request->shipment_id,
-                'action' => 'received',
-                'from_location' => $shipment->origin ?? 'Transit',
-                'to_location' => 'Main Warehouse',
-                'from_wing' => $shipment->origin_wing ?? 'manufacturer',
-                'to_wing' => 'warehouse',
-                'qty' => $request->received_qty,
-                'actor_id' => Auth::id(),
-                'status' => 'completed',
-            ]);
+            // 3. Record Movement & Update Stock (if received > 0)
+            if ($request->received_qty > 0) {
+                $shipment = Shipment::find($request->shipment_id);
+                Movement::create([
+                    'tenant_id' => $tenantId,
+                    'batch_id' => $request->batch_id,
+                    'shipment_id' => $request->shipment_id,
+                    'action' => 'received',
+                    'from_location' => $shipment->origin ?? 'Transit',
+                    'to_location' => 'Main Warehouse',
+                    'from_wing' => $shipment->origin_wing ?? 'manufacturer',
+                    'to_wing' => 'warehouse',
+                    'qty' => $request->received_qty,
+                    'actor_id' => Auth::id(),
+                    'status' => 'completed',
+                ]);
 
-            // 4. Update Batch Qty
-            $batch = Batch::find($request->batch_id);
-            $batch->increment('current_qty', $request->received_qty - $request->damaged_qty);
+                $batch = Batch::find($request->batch_id);
+                $batch->increment('current_qty', $request->received_qty);
+            }
+
+            // 4. Mark original pending record as posted (if it exists)
+            GrqrPosting::where('tenant_id', $tenantId)
+                ->where('shipment_id', $request->shipment_id)
+                ->where('batch_id', $request->batch_id)
+                ->where('status', 'pending')
+                ->update(['status' => 'posted']);
 
             DB::commit();
-            return redirect()->route('scm.gr-qr.index')->with('success', 'GR/QR Posted successfully!');
+            return redirect()->route('scm.gr-qr.index')->with('success', "GR/QR Posted successfully! Posting #: {$postingNo}");
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['error' => 'Failed to post: ' . $e->getMessage()]);
         }
+    }
+
+    public function printPosting($id)
+    {
+        $posting = GrqrPosting::with(['batch.product', 'shipment'])->findOrFail($id);
+        if ($posting->tenant_id !== Auth::user()->tenant_id) abort(403);
+        
+        return view('scm.grqr.print', compact('posting'));
     }
 }

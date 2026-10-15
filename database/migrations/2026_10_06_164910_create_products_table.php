@@ -3,12 +3,14 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Traits\Syncable;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
      */
+    use Syncable;
     public function up()
 {
     Schema::create('products', function (Blueprint $table) {
@@ -26,6 +28,8 @@ return new class extends Migration
         $table->integer('reorder_level')->default(10);
         $table->enum('status', ['active', 'inactive'])->default('active');
         $table->timestamps();
+        $table->boolean('is_synced')->default(false);
+$table->timestamp('last_synced_at')->nullable();
     });
 }
 

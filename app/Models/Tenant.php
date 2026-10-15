@@ -10,11 +10,7 @@ class Tenant extends Model
     use HasFactory;
 
     protected $fillable = [
-        'code',
-        'name',
-        'wing',
-        'gstin',
-        'pan',
-        'status'
+        'code', 'name', 'wing', 'gstin', 'pan', 'status', 
+        'email', 'phone', 'address' // Added for setup form
     ];
 }

@@ -30,6 +30,10 @@ class Shipment extends Model
         return (int) now()->startOfDay()->diffInDays($this->eta_date, false);
     }
 
+    public function batches()
+    {
+        return $this->hasMany(Batch::class);
+    }
     public function getIsOverdueAttribute(): bool
     {
         return $this->eta_date && $this->eta_date->isPast() && $this->status !== 'delivered';
@@ -61,5 +65,9 @@ class Shipment extends Model
     public function scopeOverdue($query) { 
         return $query->where('eta_date', '<', now())
                      ->whereNotIn('status', ['delivered', 'cancelled']); 
+    }
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
     }
 }
